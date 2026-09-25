@@ -1,0 +1,1215 @@
+---
+title: "FSAE-EV Scales Summary - June 2026"
+date: now
+date-format: "YYYY-MM-DD HH:mm:ss"
+format: 
+  pdf:
+    toc: true
+    number-sections: true
+    colorlinks: true
+editor: source
+---
+
+<!-- Edit this chunk in order to customize the data processing for the Excel or other
+document containing the scales data.. -->
+
+```{r}
+#| echo: false
+#| output: false
+#| warning: false
+#| label: Setup Chunk
+
+#library(googlesheets4)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+
+Input_Data <- read_excel("../Scales FSAE June 2026.xlsx",
+                         sheet = "Export Sheet") %>%
+  filter(!is.na(`Car Only`),
+         `Accumulator Weight` > 0) %>%
+  mutate(`Battery Installed` = factor(`Battery Installed`,
+                                      levels = c("YES",
+                                                 "NO"),
+                                      labels = c("Yes",
+                                                 "No")),
+         Frame = factor(Frame,
+                        levels = c("TUBE FRAME",
+                                   "PART/FULL MONO"),
+                        labels = c("Tube Frame",
+                                   "Part/Full Monocoque")),
+         `Aerodynamic Package` = factor(`Aerodynamic Package`,
+                                        levels = c("NONE",
+                                                   "PARTIAL",
+                                                   "FULL"),
+                                        labels = c("None",
+                                                   "Wings or Tray",
+                                                   "Wings and Tray")),
+         `Wheel Diameter` = factor(`Wheel Diameter`,
+                                   levels = c("10\"",
+                                              "13\"",
+                                              "Other")),
+         `Design Queue` = factor(`Design Queue`),
+         `Design Time` = factor(`Design Time`,
+                                levels = c("8:30",
+                                           "9:30",
+                                           "10:30",
+                                           "12:30",
+                                           "13:30",
+                                           "14:30",
+                                           "15:30")),
+         `Number of Motors` = factor(`Number of Motors`,
+                                     levels = c("SINGLE",
+                                                "MULTI"),
+                                     labels = c("Single",
+                                                "Multi")),
+         `System Voltage` = factor(`System Voltage`,
+                               levels = c("UNDER 200",
+                                          "200-400",
+                                          "OVER 400"),
+                               labels = c("< 200 VDC",
+                                          "200-400 VDC",
+                                          "> 400 VDC")),
+         `TS Cooling` = factor(`TS Cooling`,
+                               levels = c("AIR",
+                                          "LIQUID"),
+                               labels = c("Air Only",
+                                          "Any Liquid")),
+         `Weight Rank Overall` = rank(`Car Only`, ties.method = "min"))
+
+frame_levels <- levels(Input_Data$Frame)
+aero_levels <- levels(Input_Data$`Aerodynamic Package`)
+wheel_levels <- levels(Input_Data$`Wheel Diameter`)
+motor_levels <- levels(Input_Data$`Number of Motors`)
+voltage_levels <- levels(Input_Data$`System Voltage`)
+queue_levels <- levels(Input_Data$`Design Queue`)
+time_levels <- levels(Input_Data$`Design Time`)
+
+```
+<!-- ## Navigation -->
+<!-- This document has sections covering different breakdowns and summaries of scales data from the event. It is meant to be scrolled in order, but to jump to one of the sections directly, click a link to the right. -->
+
+{{< pagebreak >}}
+
+## Overview {#sec-overview}
+
+A total of `r nrow(Input_Data)` teams were scaled before Design. Of the cars, the lightest was `r round(min(Input_Data$"Car Only"),1)`kg (`r Input_Data$"School Name"[rank(Input_Data$"Car Only") == 1]`), the mean car weight was `r round(mean(Input_Data$"Car Only"),1)`kg, and the median car was `r round(median(Input_Data$"Car Only"),1)`kg.
+
+**If a weight sticker indicates "No Accumulator", the sticker does not include the battery weight, but the battery weight was added to the "Car Only" total on this site. If a team did not have an a battery weighed, they have been excluded from this report.**
+
+For comparison, the lightest car in 2025 was 167.4 kg (University of Wisconsin - Madison), the median car was 226.0 kg, and the average was 226.7 kg.
+
+Photos of all cars can be found online at <https://bit.ly/FSAEJ26Scales>
+
+<!-- The interactive data table is at the bottom of the page in the Interactive Results Table section. (@sec-Interactive-Table)  -->
+
+## Weight Rank and Overall Raincloud Visualization {#sec-weight-rank-vis}
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Weight Rank Vis
+#| out-width: 90%
+
+
+tenthpctmass <- quantile(Input_Data$`Car Only`, probs = .10, na.rm = T)
+firstquartmass <- quantile(Input_Data$`Car Only`, probs = .25, na.rm = T)
+medianmass <- quantile(Input_Data$`Car Only`, probs = .5, na.rm = T)
+thirdquartmass <- quantile(Input_Data$`Car Only`, probs = .75, na.rm = T)
+maxrank <- max(rank(Input_Data$`Car Only`,
+                    ties.method = "random"))
+Input_Data %>%
+  filter(!is.na(`Car Only`)) %>%
+  ggplot() +
+  geom_point(aes(x = rank(`Car Only`,
+                          ties.method = "random"),
+                 y = `Car Only`,
+                 color = `Battery Installed`,
+                 shape = `Battery Installed`),
+             size = 1.5) +
+  geom_hline(yintercept = medianmass, alpha = 0.5) +
+  geom_hline(yintercept = firstquartmass, alpha = 0.5) +
+  geom_hline(yintercept = thirdquartmass, alpha = 0.5) +
+  annotate("text", x = .9*maxrank, y = firstquartmass - 4, label = paste("25th %ile:", round(firstquartmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = medianmass - 4, label = paste("Median:", round(medianmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = thirdquartmass - 4, label = paste("75th %ile:", round(thirdquartmass, 1)), size = 11/.pt) +
+  labs(y = "Car Only Weight, kg", x = "Weight Rank" , title = "Weight vs Rank, All Vehicles") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.75),
+        legend.background = element_rect(
+          fill = "white",          # Background color
+          colour = "white",        # Border color
+          linewidth = 0.5          # Border thickness
+          ))
+```
+
+The weight of each vehicle is presented on the vertical, the ranking of the vehicle overall (lightest to heaviest) on the horizontal. Note that some cars were weighed without a battery installed (usually because the battery had not passed technical inspection), and in those cases the weight of the battery and the car without battery were combined to create a comparison weight. This graph is recreated excluding these vehicles below.
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Weight Rank Vis, Complete Only
+#| out-width: 80%
+
+
+tenthpctmass <- quantile(Input_Data$`Car Only`[Input_Data$`Battery Installed` == "Yes"], probs = .10, na.rm = T)
+firstquartmass <- quantile(Input_Data$`Car Only`[Input_Data$`Battery Installed` == "Yes"], probs = .25, na.rm = T)
+medianmass <- quantile(Input_Data$`Car Only`[Input_Data$`Battery Installed` == "Yes"], probs = .5, na.rm = T)
+thirdquartmass <- quantile(Input_Data$`Car Only`[Input_Data$`Battery Installed` == "Yes"], probs = .75, na.rm = T)
+maxrank <- max(rank(Input_Data$`Car Only`[Input_Data$`Battery Installed` == "Yes"],
+                    ties.method = "random"))
+Input_Data %>%
+  filter(!is.na(`Car Only`),
+         `Battery Installed` == "Yes") %>%
+  ggplot() +
+  geom_point(aes(x = rank(`Car Only`,
+                          ties.method = "random"),
+                 y = `Car Only`),
+             size = 1.5) +
+  geom_hline(yintercept = medianmass, alpha = 0.5) +
+  geom_hline(yintercept = firstquartmass, alpha = 0.5) +
+  geom_hline(yintercept = thirdquartmass, alpha = 0.5) +
+  annotate("text", x = .9*maxrank, y = firstquartmass - 4, label = paste("25th %ile:", round(firstquartmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = medianmass - 4, label = paste("Median:", round(medianmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = thirdquartmass - 4, label = paste("75th %ile:", round(thirdquartmass, 1)), size = 11/.pt) +
+  labs(y = "Car Only Weight, kg", x = "Weight Rank", title = "Weight vs Rank, Only With Battery Installed") +
+  theme_minimal(base_size = 14) +
+    theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.75),
+        legend.background = element_rect(
+      fill = "white",          # Background color
+      colour = "white",        # Border color
+      linewidth = 0.5          # Border thickness
+    ))
+```
+
+Tables ordered by weight, car number, alphabetically, and by queue and time, are provided at the end of the page for more detail. At the very bottom of the page is a dynamic data table with options for sorting, filtering, and searching (See navigation at left.)
+
+Below, the total distribution of weights is visualized using a "raincloud" graph, where weights rounded to the nearest kg (and frequency as dot/length of pattern) on the are at bottom, a boxplot (with outliers removed) in the center, and a kernel density plot is at the top.
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Overall Raincloud
+#| out-width: 80%
+
+ggplot(Input_Data, aes(y = "All Cars", x = `Car Only`))  + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .5, 
+    ## adjust height
+    height = .5, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA,
+    alpha = 0.5
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  ) +
+  ## add dot plots from {ggdist} package
+  ggdist::stat_dots(
+    ## orientation to the left
+    side = "left", 
+    ## move geom to the left
+    justification = 1.12, 
+    ## adjust grouping (binning) of observations 
+    binwidth = 1,
+    size = 2
+  ) + 
+  ## remove white space on the sides
+  coord_cartesian(ylim = c(1.3, 1.8)) +
+  theme_minimal(base_size = 14) +
+  labs(y = "",
+       x = "Weight in kg")
+```
+
+## Summary Tables - Comparisons Across Vehicle Attributes {#sec-attrib-cross}
+
+Using information provided by teams at the time of weighing, the tables below compare the range of vehicle weights across frame type, aerodynamic package, wheel size, engine configuration/number of cylinders, and use of turbocharging. In each table, the minimum, 25th percentile, median, 75th percentile, and maximum weight are provided, as are the mean and sample standard deviation (and count of vehicles). Below the tables are "raincloud" visualizations of the data, with weights rounded to the nearest kg on the left, a boxplot (with outliers removed) in the center, and a density plot at right.
+
+### Frame Construction
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Frame Split Table
+
+summary_by_frame <- Input_Data %>% filter(!is.na(`Frame`)) %>%
+  group_by(`Frame`) %>% 
+  summarize("Median Weight" = round(median(`Car Only`),1),
+            "Min Weight" = round(min(`Car Only`),1),
+            "25% Weight" = round(quantile(`Car Only`, probs = .25),1),
+            "75% Weight" = round(quantile(`Car Only`, probs = .75),1),
+            "Max Weight" = round(max(`Car Only`),1),
+            "Mean Weight" = round(mean(`Car Only`),1),
+            "StDev Weight" = round(sd(`Car Only`),1),
+            "Count" = n())
+knitr::kable(summary_by_frame, caption = "Weight Summary by Frame Construction")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Frame Split Chart
+#| out-width: 80%
+
+ggplot(Input_Data, aes(y = forcats::fct_rev(Frame), x = `Car Only`))  + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .5, 
+    ## adjust height
+    height = .5, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA,
+    alpha = 0.5
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  ) +
+  ## add dot plots from {ggdist} package
+  ggdist::stat_dots(
+    ## orientation to the left
+    side = "left", 
+    ## move geom to the left
+    justification = 1.12, 
+    ## adjust grouping (binning) of observations 
+    binwidth = 1,
+    size = 2
+  ) + 
+  ## remove white space on the sides
+#  coord_cartesian(xlim = c(1.3, 2.9)) +
+  theme_minimal(base_size = 14) +
+  labs(y = "Frame Construction",
+       x = "Weight in kg")
+```
+
+### Wheel Diameter
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Wheel Split Table
+
+summary_by_wheel <- Input_Data %>% filter(!is.na(`Wheel Diameter`)) %>%
+  group_by(`Wheel Diameter`) %>% 
+  summarize("Median Weight" = round(median(`Car Only`),1),
+            "Min Weight" = round(min(`Car Only`),1),
+            "25% Weight" = round(quantile(`Car Only`, probs = .25),1),
+            "75% Weight" = round(quantile(`Car Only`, probs = .75),1),
+            "Max Weight" = round(max(`Car Only`),1),
+            "Mean Weight" = round(mean(`Car Only`),1),
+            "StDev Weight" = round(sd(`Car Only`),1),
+            "Count" = n())
+knitr::kable(summary_by_wheel, caption = "Weight Summary by Wheel Diameter")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Wheel Split Chart
+#| out-width: 80%
+
+ggplot(Input_Data, aes(y = forcats::fct_rev(`Wheel Diameter`), x = `Car Only`))  + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .5, 
+    ## adjust height
+    height = .5, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA,
+    alpha = 0.5
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  ) +
+  ## add dot plots from {ggdist} package
+  ggdist::stat_dots(
+    ## orientation to the left
+    side = "left", 
+    ## move geom to the left
+    justification = 1.12, 
+    ## adjust grouping (binning) of observations 
+    binwidth = 1,
+    size = 2
+  ) + 
+  ## remove white space on the sides
+#  coord_cartesian(xlim = c(1.3, 2.9)) +
+  theme_minimal(base_size = 14) +
+  labs(y = "Wheel Diameter",
+       x = "Weight in kg")
+```
+
+### Aerodynamic Package
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Aero Split Table
+
+summary_by_aero <- Input_Data %>% filter(!is.na(`Aerodynamic Package`)) %>%
+  group_by(`Aerodynamic Package`) %>% 
+  summarize("Median Weight" = round(median(`Car Only`),1),
+            "Min Weight" = round(min(`Car Only`),1),
+            "25% Weight" = round(quantile(`Car Only`, probs = .25),1),
+            "75% Weight" = round(quantile(`Car Only`, probs = .75),1),
+            "Max Weight" = round(max(`Car Only`),1),
+            "Mean Weight" = round(mean(`Car Only`),1),
+            "StDev Weight" = round(sd(`Car Only`),1),
+            "Count" = n())
+knitr::kable(summary_by_aero, caption = "Weight Summary by Aerodynamic Package")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Aero Split Chart
+#| out-width: 80%
+
+ggplot(Input_Data, aes(y = forcats::fct_rev(`Aerodynamic Package`), x = `Car Only`))  + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .5, 
+    ## adjust height
+    height = .5, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA,
+    alpha = 0.5
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  ) +
+  ## add dot plots from {ggdist} package
+  ggdist::stat_dots(
+    ## orientation to the left
+    side = "left", 
+    ## move geom to the left
+    justification = 1.12, 
+    ## adjust grouping (binning) of observations 
+    binwidth = 1,
+    size = 2
+  ) + 
+  ## remove white space on the sides
+#  coord_cartesian(xlim = c(1.3, 2.9)) +
+  theme_minimal(base_size = 14) +
+  labs(y = "Aerodynamic Package",
+       x = "Weight in kg")
+```
+
+### Motor Configuration (Single vs Multi)
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Motor Split Table
+
+summary_by_cylinders <- Input_Data %>% filter(!is.na(`Number of Motors`)) %>%
+  group_by(`Number of Motors`) %>% 
+  summarize("Median Weight" = round(median(`Car Only`),1),
+            "Min Weight" = round(min(`Car Only`),1),
+            "25% Weight" = round(quantile(`Car Only`, probs = .25),1),
+            "75% Weight" = round(quantile(`Car Only`, probs = .75),1),
+            "Max Weight" = round(max(`Car Only`),1),
+            "Mean Weight" = round(mean(`Car Only`),1),
+            "StDev Weight" = round(sd(`Car Only`),1),
+            "Count" = n())
+knitr::kable(summary_by_cylinders, caption = "Weight Summary by Number of Motors")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Motor Split Chart
+#| out-width: 80%
+
+ggplot(Input_Data, aes(y = forcats::fct_rev(`Number of Motors`), x = `Car Only`))  + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .5, 
+    ## adjust height
+    height = .5, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA,
+    alpha = 0.5
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  ) +
+  ## add dot plots from {ggdist} package
+  ggdist::stat_dots(
+    ## orientation to the left
+    side = "left", 
+    ## move geom to the left
+    justification = 1.12, 
+    ## adjust grouping (binning) of observations 
+    binwidth = 1,
+    size = 2
+  ) + 
+  ## remove white space on the sides
+#  coord_cartesian(xlim = c(1.3, 2.9)) +
+  theme_minimal(base_size = 14) +
+  labs(y = "Number of Motors",
+       x = "Weight in kg")
+```
+
+### Tractive System Cooling
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: TS Cooling Split Table
+
+summary_by_cooling <- Input_Data %>% filter(!is.na(`TS Cooling`)) %>%
+  group_by(`TS Cooling`) %>% 
+  summarize("Median Weight" = round(median(`Car Only`),1),
+            "Min Weight" = round(min(`Car Only`),1),
+            "25% Weight" = round(quantile(`Car Only`, probs = .25),1),
+            "75% Weight" = round(quantile(`Car Only`, probs = .75),1),
+            "Max Weight" = round(max(`Car Only`),1),
+            "Mean Weight" = round(mean(`Car Only`),1),
+            "StDev Weight" = round(sd(`Car Only`),1),
+            "Count" = n())
+knitr::kable(summary_by_cooling, caption = "Weight Summary by Tractive System Cooling")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: TS Cooling Split Chart
+#| out-width: 80%
+
+ggplot(Input_Data, aes(y = forcats::fct_rev(`TS Cooling`), x = `Car Only`))  + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .5, 
+    ## adjust height
+    height = .5, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA,
+    alpha = 0.5
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  ) +
+  ## add dot plots from {ggdist} package
+  ggdist::stat_dots(
+    ## orientation to the left
+    side = "left", 
+    ## move geom to the left
+    justification = 1.12, 
+    ## adjust grouping (binning) of observations 
+    binwidth = 1,
+    size = 2
+  ) + 
+  ## remove white space on the sides
+#  coord_cartesian(xlim = c(1.3, 2.9)) +
+  theme_minimal(base_size = 14) +
+  labs(y = "Tractive System Cooling",
+       x = "Weight in kg")
+```
+
+### Tractive System Voltage
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Voltage Split Table
+
+summary_by_voltage <- Input_Data %>% filter(!is.na(`System Voltage`)) %>%
+  group_by(`System Voltage`) %>% 
+  summarize("Median Weight" = round(median(`Car Only`),1),
+            "Min Weight" = round(min(`Car Only`),1),
+            "25% Weight" = round(quantile(`Car Only`, probs = .25),1),
+            "75% Weight" = round(quantile(`Car Only`, probs = .75),1),
+            "Max Weight" = round(max(`Car Only`),1),
+            "Mean Weight" = round(mean(`Car Only`),1),
+            "StDev Weight" = round(sd(`Car Only`),1),
+            "Count" = n())
+knitr::kable(summary_by_voltage, caption = "Weight Summary by System Voltage")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Voltage Split Chart
+#| out-width: 80%
+
+ggplot(Input_Data, aes(y = forcats::fct_rev(`System Voltage`), x = `Car Only`))  + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .5, 
+    ## adjust height
+    height = .5, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA,
+    alpha = 0.5
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  ) +
+  ## add dot plots from {ggdist} package
+  ggdist::stat_dots(
+    ## orientation to the left
+    side = "left", 
+    ## move geom to the left
+    justification = 1.12, 
+    ## adjust grouping (binning) of observations 
+    binwidth = 1,
+    size = 2
+  ) + 
+  ## remove white space on the sides
+#  coord_cartesian(xlim = c(1.3, 2.9)) +
+  theme_minimal(base_size = 14) +
+  labs(y = "System Voltage",
+       x = "Weight in kg")
+```
+
+## Weight Rank Visualizations - Comparisons Across Vehicle Characteristics
+
+In this section, the "Weight Rank Visualization" is presented with the vehicles of different characteristics represented with color and marker shape.
+
+### Frame Construction
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: Weight Rank Vis - Frame
+#| out-width: 80%
+
+tenthpctmass <- quantile(Input_Data$`Car Only`, probs = .10, na.rm = T)
+firstquartmass <- quantile(Input_Data$`Car Only`, probs = .25, na.rm = T)
+medianmass <- quantile(Input_Data$`Car Only`, probs = .5, na.rm = T)
+thirdquartmass <- quantile(Input_Data$`Car Only`, probs = .75, na.rm = T)
+maxrank <- max(rank(Input_Data$`Car Only`,
+                    ties.method = "random"))
+Input_Data %>%
+  filter(!is.na(`Car Only`)) %>%
+  ggplot() +
+  geom_point(aes(x = rank(`Car Only`,
+                          ties.method = "random"),
+                 y = `Car Only`,
+                 color = Frame,
+                 shape = Frame),
+             size = 1.5) +
+  geom_hline(yintercept = medianmass, alpha = 0.5) +
+  geom_hline(yintercept = firstquartmass, alpha = 0.5) +
+  geom_hline(yintercept = thirdquartmass, alpha = 0.5) +
+  annotate("text", x = .9*maxrank, y = firstquartmass - 4, label = paste("25th %ile:", round(firstquartmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = medianmass - 4, label = paste("Median:", round(medianmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = thirdquartmass - 4, label = paste("75th %ile:", round(thirdquartmass, 1)), size = 11/.pt) +
+  labs(y = "Car Only Weight, kg", x = "Weight Rank") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.75),
+        legend.background = element_rect(
+      fill = "white",          # Background color
+      colour = "white",        # Border color
+      linewidth = 0.5          # Border thickness
+    )) +
+  labs(x = "Weight Rank Overall",
+       y = "Car Weight in kg",
+       color = "Frame Construction",
+       shape = "Frame Construction")
+```
+
+### Wheel Diameter
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: Weight Rank Vis - Wheel
+#| out-width: 80%
+
+tenthpctmass <- quantile(Input_Data$`Car Only`, probs = .10, na.rm = T)
+firstquartmass <- quantile(Input_Data$`Car Only`, probs = .25, na.rm = T)
+medianmass <- quantile(Input_Data$`Car Only`, probs = .5, na.rm = T)
+thirdquartmass <- quantile(Input_Data$`Car Only`, probs = .75, na.rm = T)
+maxrank <- max(rank(Input_Data$`Car Only`,
+                    ties.method = "random"))
+Input_Data %>%
+  filter(!is.na(`Car Only`)) %>%
+  ggplot() +
+  geom_point(aes(x = rank(`Car Only`,
+                          ties.method = "random"),
+                 y = `Car Only`,
+                 color = `Wheel Diameter`,
+                 shape = `Wheel Diameter`),
+             size = 1.5) +
+  geom_hline(yintercept = medianmass, alpha = 0.5) +
+  geom_hline(yintercept = firstquartmass, alpha = 0.5) +
+  geom_hline(yintercept = thirdquartmass, alpha = 0.5) +
+  annotate("text", x = .9*maxrank, y = firstquartmass - 4, label = paste("25th %ile:", round(firstquartmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = medianmass - 4, label = paste("Median:", round(medianmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = thirdquartmass - 4, label = paste("75th %ile:", round(thirdquartmass, 1)), size = 11/.pt) +
+  labs(y = "Car Only Weight, kg", x = "Weight Rank") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.75),
+        legend.background = element_rect(
+      fill = "white",          # Background color
+      colour = "white",        # Border color
+      linewidth = 0.5          # Border thickness
+    )) +
+  labs(x = "Weight Rank Overall",
+       y = "Car Weight in kg",
+       color = "Wheel Diameter")
+```
+
+### Aerodynamic Package
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: Weight Rank Vis - Aero
+#| out-width: 80%
+
+tenthpctmass <- quantile(Input_Data$`Car Only`, probs = .10, na.rm = T)
+firstquartmass <- quantile(Input_Data$`Car Only`, probs = .25, na.rm = T)
+medianmass <- quantile(Input_Data$`Car Only`, probs = .5, na.rm = T)
+thirdquartmass <- quantile(Input_Data$`Car Only`, probs = .75, na.rm = T)
+maxrank <- max(rank(Input_Data$`Car Only`,
+                    ties.method = "random"))
+Input_Data %>%
+  filter(!is.na(`Car Only`)) %>%
+  ggplot() +
+  geom_point(aes(x = rank(`Car Only`,
+                          ties.method = "random"),
+                 y = `Car Only`,
+                 color = `Aerodynamic Package`,
+                 shape = `Aerodynamic Package`),
+             size = 1.5) +
+  geom_hline(yintercept = medianmass, alpha = 0.5) +
+  geom_hline(yintercept = firstquartmass, alpha = 0.5) +
+  geom_hline(yintercept = thirdquartmass, alpha = 0.5) +
+  annotate("text", x = .9*maxrank, y = firstquartmass - 4, label = paste("25th %ile:", round(firstquartmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = medianmass - 4, label = paste("Median:", round(medianmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = thirdquartmass - 4, label = paste("75th %ile:", round(thirdquartmass, 1)), size = 11/.pt) +
+  labs(y = "Car Only Weight, kg", x = "Weight Rank") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.75),
+        legend.background = element_rect(
+      fill = "white",          # Background color
+      colour = "white",        # Border color
+      linewidth = 0.5          # Border thickness
+    )) +
+  labs(x = "Weight Rank Overall",
+       y = "Car Weight in kg",
+       color = "Aerodynamic Package",
+       shape = "Aerodynamic Package")
+```
+
+### Motor Configuration (Single vs Multi)
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: Weight Rank Vis - Number of Motors
+#| out-width: 80%
+
+tenthpctmass <- quantile(Input_Data$`Car Only`, probs = .10, na.rm = T)
+firstquartmass <- quantile(Input_Data$`Car Only`, probs = .25, na.rm = T)
+medianmass <- quantile(Input_Data$`Car Only`, probs = .5, na.rm = T)
+thirdquartmass <- quantile(Input_Data$`Car Only`, probs = .75, na.rm = T)
+maxrank <- max(rank(Input_Data$`Car Only`,
+                    ties.method = "random"))
+Input_Data %>%
+  filter(!is.na(`Car Only`)) %>%
+  ggplot() +
+  geom_point(aes(x = rank(`Car Only`,
+                          ties.method = "random"),
+                 y = `Car Only`,
+                 color = `Number of Motors`,
+                 shape = `Number of Motors`),
+             size = 1.5) +
+  geom_hline(yintercept = medianmass, alpha = 0.5) +
+  geom_hline(yintercept = firstquartmass, alpha = 0.5) +
+  geom_hline(yintercept = thirdquartmass, alpha = 0.5) +
+  annotate("text", x = .9*maxrank, y = firstquartmass - 4, label = paste("25th %ile:", round(firstquartmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = medianmass - 4, label = paste("Median:", round(medianmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = thirdquartmass - 4, label = paste("75th %ile:", round(thirdquartmass, 1)), size = 11/.pt) +
+  labs(y = "Car Only Weight, kg", x = "Weight Rank") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.75),
+        legend.background = element_rect(
+      fill = "white",          # Background color
+      colour = "white",        # Border color
+      linewidth = 0.5          # Border thickness
+    )) +
+  labs(x = "Weight Rank Overall",
+       y = "Car Weight in kg",
+       color = "Number of Motors",
+       shape = "Number of Motors")
+```
+
+### Tractive System Cooling
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: Weight Rank Vis - TS Cooling
+#| out-width: 80%
+
+tenthpctmass <- quantile(Input_Data$`Car Only`, probs = .10, na.rm = T)
+firstquartmass <- quantile(Input_Data$`Car Only`, probs = .25, na.rm = T)
+medianmass <- quantile(Input_Data$`Car Only`, probs = .5, na.rm = T)
+thirdquartmass <- quantile(Input_Data$`Car Only`, probs = .75, na.rm = T)
+maxrank <- max(rank(Input_Data$`Car Only`,
+                    ties.method = "random"))
+Input_Data %>%
+  filter(!is.na(`Car Only`)) %>%
+  ggplot() +
+  geom_point(aes(x = rank(`Car Only`,
+                          ties.method = "random"),
+                 y = `Car Only`,
+                 color = `TS Cooling`,
+                 shape = `TS Cooling`),
+             size = 1.5) +
+  geom_hline(yintercept = medianmass, alpha = 0.5) +
+  geom_hline(yintercept = firstquartmass, alpha = 0.5) +
+  geom_hline(yintercept = thirdquartmass, alpha = 0.5) +
+  annotate("text", x = .9*maxrank, y = firstquartmass - 4, label = paste("25th %ile:", round(firstquartmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = medianmass - 4, label = paste("Median:", round(medianmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = thirdquartmass - 4, label = paste("75th %ile:", round(thirdquartmass, 1)), size = 11/.pt) +
+  labs(y = "Car Only Weight, kg", x = "Weight Rank") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.75),
+        legend.background = element_rect(
+      fill = "white",          # Background color
+      colour = "white",        # Border color
+      linewidth = 0.5          # Border thickness
+    )) +
+  labs(x = "Weight Rank Overall",
+       y = "Car Weight in kg",
+       color = "TS Cooling",
+       shape = "TS Cooling")
+```
+
+### Tractive System Voltage
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: Weight Rank Vis - Voltage
+#| out-width: 80%
+
+tenthpctmass <- quantile(Input_Data$`Car Only`, probs = .10, na.rm = T)
+firstquartmass <- quantile(Input_Data$`Car Only`, probs = .25, na.rm = T)
+medianmass <- quantile(Input_Data$`Car Only`, probs = .5, na.rm = T)
+thirdquartmass <- quantile(Input_Data$`Car Only`, probs = .75, na.rm = T)
+maxrank <- max(rank(Input_Data$`Car Only`,
+                    ties.method = "random"))
+Input_Data %>%
+  filter(!is.na(`Car Only`)) %>%
+  ggplot() +
+  geom_point(aes(x = rank(`Car Only`,
+                          ties.method = "random"),
+                 y = `Car Only`,
+                 color = `System Voltage`,
+                 shape = `System Voltage`),
+             size = 1.5) +
+  geom_hline(yintercept = medianmass, alpha = 0.5) +
+  geom_hline(yintercept = firstquartmass, alpha = 0.5) +
+  geom_hline(yintercept = thirdquartmass, alpha = 0.5) +
+  annotate("text", x = .9*maxrank, y = firstquartmass - 4, label = paste("25th %ile:", round(firstquartmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = medianmass - 4, label = paste("Median:", round(medianmass, 1)), size = 11/.pt) +
+  annotate("text", x = .9*maxrank, y = thirdquartmass - 4, label = paste("75th %ile:", round(thirdquartmass, 1)), size = 11/.pt) +
+  labs(y = "Car Only Weight, kg", x = "Weight Rank") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "inside",
+        legend.position.inside = c(0.25, 0.75),
+        legend.background = element_rect(
+      fill = "white",          # Background color
+      colour = "white",        # Border color
+      linewidth = 0.5          # Border thickness
+    )) +
+  labs(x = "Weight Rank Overall",
+       y = "Car Weight in kg",
+       color = "System Voltage",
+       shape = "System Voltage")
+```
+
+
+## Weight Balance Visualization
+Here, Front Weight % versus Left/Right Weight % is compared with each marker representing a car. Additionally, concentric rings represent bivariate density (joint distribution of X and Y variable), where the innermost rings are areas of highest mass/density observed (most data/observations). *All visualizations including balance only include vehicles weighed with battery installed.*
+
+```{r}
+#| echo: false
+#| warning: false
+#| message: false
+#| label: Weight Balance Chart
+#| out-width: 80%
+
+Input_Data %>% 
+  filter(!is.na(`Car Only`),
+         `Battery Installed` == "Yes") %>%
+  ggplot(aes(y = .data[["Front %"]],
+             x = 0.5-.data[["Left %"]])) +
+  geom_point(color = "darkorchid3") +
+  geom_density_2d(color = "black",
+                  alpha = 0.4) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0.5) +
+  scale_x_continuous(labels = scales::label_percent()) +
+  scale_y_continuous(labels = scales::label_percent()) +
+  labs(x = "L/R Imbalance (50% - Left%)",
+       y = "Front Weight %") +
+  theme_minimal(base_size = 14)
+```
+
+## Wheelbase Visualizations
+First, a comparison of overall vehicle weight against the wheelbase. A linear fit (with 95% confidence interval) is presented atop the scatterplot.
+
+```{r}
+#| echo: false
+#| message: false
+#| label: Wheelbase vs Weight Chart
+#| out-width: 80%
+
+Input_Data %>% 
+        filter(!is.na(`Car Only`)) %>%
+        ggplot(aes(y = `Car Only`,
+                   x = Wheelbase)) +
+        geom_point(color = "firebrick3")+
+        geom_smooth(method = "lm",
+                    alpha = 0.2,
+                    color = "black") +
+        theme_minimal(base_size = 14)
+```
+
+Second, a comparison of wheelbase against Front %. A linear fit (with 95% confidence interval) is presented atop the scatterplot. *All visualizations including balance only include vehicles weighed with battery installed.*
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: Wheelbase vs Front Chart
+#| out-width: 80%
+
+Input_Data %>% 
+        filter(!is.na(`Car Only`),
+         `Battery Installed` == "Yes") %>%
+        ggplot(aes(y = `Front %`,
+                   x = `Wheelbase`)) +
+        geom_hline(yintercept = 0.5,
+                   linetype = 3) +
+        geom_point(color = "royalblue3")+
+        geom_smooth(method = "lm",
+                    alpha = 0.2,
+                    color = "black") +
+        scale_y_continuous(labels = scales::label_percent()) +
+        theme_minimal(base_size = 14)
+```
+
+Third, a comparison of driver weight (as calculated by balance weights less car only weight) against front weight % is presented, including a linear fit (and 95% confidence interval). *All visualizations including balance only include vehicles weighed with battery installed.*
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: Driver Weight vs Front Chart
+#| out-width: 80%
+
+Input_Data %>% 
+        filter(!is.na(`Car Only`),
+         `Battery Installed` == "Yes") %>%
+        ggplot(aes(y = `Front %`,
+                   x = `Driver Weight`)) +
+        geom_hline(yintercept = 0.5,
+                   linetype = 3) +
+        geom_point(color = "forestgreen")+
+        geom_smooth(method = "lm",
+                    alpha = 0.2,
+                    color = "black") +
+        scale_y_continuous(labels = scales::label_percent()) +
+        theme_minimal(base_size = 14)
+```
+
+Finally, for context regarding the above graph, a comparison of driver weight (as calculated by balance weights less car only weight) against car only weight is presented, including a linear fit (and 95% confidence interval).
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: Driver Weight vs Car Weight Chart
+#| out-width: 80%
+
+Input_Data %>% 
+        filter(!is.na(`Car Only`)) %>%
+        ggplot(aes(y = `Car Only`,
+                   x = `Driver Weight`)) +
+        geom_point(color = "gray40")+
+        geom_smooth(method = "lm",
+                    alpha = 0.2,
+                    color = "black") +
+ #       scale_y_continuous(labels = scales::label_percent()) +
+        theme_minimal(base_size = 14)
+```
+
+## Summary Tables and Chart by Queue and Design Time {#sec-queue-cross}
+
+```{r}
+#| echo: false
+#| output: false
+#| warning: false
+#| label: Summary by Queue Setup
+
+summary_by_queue <- Input_Data %>% filter(!is.na(`Design Queue`)) %>%
+  group_by(`Design Queue`) %>% 
+  summarize("Median Weight" = round(median(`Car Only`),1),
+            "Min Weight" = round(min(`Car Only`),1),
+            "25% Weight" = round(quantile(`Car Only`, probs = .25),1),
+            "75% Weight" = round(quantile(`Car Only`, probs = .75),1),
+            "Max Weight" = round(max(`Car Only`),1),
+            "Mean Weight" = round(mean(`Car Only`),1),
+            "StDev Weight" = round(sd(`Car Only`),1),
+            "Count" = n())
+```
+
+Across the `r length(levels(Input_Data$"Design Queue"))` different queues, the queue with the lowest median was Queue `r summary_by_queue$"Design Queue"[rank(summary_by_queue$"Median Weight") == 1]`, with a median weight of `r round(summary_by_queue$"Median Weight"[rank(summary_by_queue$"Median Weight") == 1],1)`kg. Across the queues, the median weight varied by `r round(diff(range(summary_by_queue$"Median Weight")),1)`kg. The range of mean weights were from `r round(range(summary_by_queue$"Mean Weight")[1],1)`kg to `r round(range(summary_by_queue$"Mean Weight")[2],1)`kg.
+
+```{r}
+#| echo: false
+#| label: Summary By Queue Output
+knitr::kable(summary_by_queue, caption = "Weight Summary by Queue")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Queue Split Chart
+#| out-width: 80%
+
+ggplot(Input_Data, aes(y = forcats::fct_rev(`Design Queue`), x = `Car Only`))  + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .5, 
+    ## adjust height
+    height = .5, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA,
+    alpha = 0.5
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  ) +
+  ## add dot plots from {ggdist} package
+  ggdist::stat_dots(
+    ## orientation to the left
+    side = "left", 
+    ## move geom to the left
+    justification = 1.12, 
+    ## adjust grouping (binning) of observations 
+    binwidth = 1,
+    size = 2
+  ) + 
+  ## remove white space on the sides
+#  coord_cartesian(xlim = c(1.3, 2.9)) +
+  theme_minimal(base_size = 14) +
+  labs(y = "Design Queue",
+       x = "Weight in kg")
+```
+
+
+```{r}
+#| echo: false
+#| output: false
+#| label: Summary by Time Setup
+
+summary_by_time <- Input_Data %>% filter(!is.na(`Design Time`)) %>%
+  group_by(`Design Time`) %>% 
+  summarize("Median Weight" = round(median(`Car Only`),1),
+            "Min Weight" = round(min(`Car Only`),1),
+            "First Quartile Weight" = round(quantile(`Car Only`, probs = .25),1),
+            "Third Quartile Weight" = round(quantile(`Car Only`, probs = .75),1),
+            "Max Weight" = round(max(`Car Only`),1),
+            "Mean Weight" = round(mean(`Car Only`),1),
+            "StDev Weight" = round(sd(`Car Only`),1),
+            "Count" = n())
+```
+
+Across the `r length(levels(Input_Data$"Design Time"))` different design slots, the time with the lowest median was `r summary_by_time$"Design Time"[rank(summary_by_time$"Median Weight") == 1]`, with a median weight of `r round(summary_by_time$"Median Weight"[rank(summary_by_time$"Median Weight") == 1],1)`kg. Across the queues, the median weight varied by `r round(diff(range(summary_by_time$"Median Weight")),1)`kg.
+
+```{r}
+#| echo: false
+#| label: Summary by Time Output
+knitr::kable(summary_by_time, caption = "Weight Summary by Time")
+```
+
+```{r}
+#| echo: false
+#| warning: false
+#| label: Time Split Chart
+#| out-width: 80%
+
+ggplot(Input_Data, aes(y = forcats::fct_rev(`Design Time`), x = `Car Only`))  + 
+  ## add half-violin from {ggdist} package
+  ggdist::stat_halfeye(
+    ## custom bandwidth
+    adjust = .5, 
+    ## adjust height
+    height = .5, 
+    ## move geom to the right
+    justification = -.2, 
+    ## remove slab interval
+    .width = 0, 
+    point_colour = NA,
+    alpha = 0.5
+  ) + 
+  geom_boxplot(
+    width = .15, 
+    ## remove outliers
+    outlier.color = NA ## `outlier.shape = NA` or `outlier.alpha = 0` works as well
+  ) +
+  ## add dot plots from {ggdist} package
+  ggdist::stat_dots(
+    ## orientation to the left
+    side = "left", 
+    ## move geom to the left
+    justification = 1.12, 
+    ## adjust grouping (binning) of observations 
+    binwidth = 1,
+    size = 2
+  ) + 
+  ## remove white space on the sides
+#  coord_cartesian(xlim = c(1.3, 2.9)) +
+  theme_minimal(base_size = 14) +
+  labs(y = "Design Timeslot",
+       x = "Weight in kg")
+```
+
+
+## Overall Weight Rank Table
+```{r}
+#| echo: false
+#| warning: false
+#| label: Overall Weight Rank Table
+
+Input_Data_Formatted <- Input_Data %>% 
+  select(c("Car Number",
+           "School Name",
+           "Car Only",
+           "Front %",
+           "Left %",
+           "Battery Installed",
+           "Design Queue",
+           "Design Time",
+           "Weight Rank Overall")) %>%
+  mutate(`Car Only` = round(`Car Only`, 1),
+         `Front %` = paste0(round(`Front %` * 100, 1),"%"),
+         `Left %` = paste0(round(`Left %` * 100, 1),"%")) %>%
+  arrange(`Weight Rank Overall`)
+
+knitr::kable(Input_Data_Formatted, caption = "Weights Data, sorted by Car Only Weight")
+```
+
+## Car Number Weight Table
+```{r}
+#| echo: false
+#| warning: false
+#| label: Car Number Order Table
+
+Input_Data_Formatted <- Input_Data_Formatted %>% 
+  arrange(`Car Number`)
+
+knitr::kable(Input_Data_Formatted, caption = "Weights Data, sorted by Car Number")
+```
+## Alphabetical Weight Table
+```{r}
+#| echo: false
+#| warning: false
+#| label: Alphabetical Order Table
+
+Input_Data_Formatted <- Input_Data_Formatted %>% 
+  arrange(`School Name`)
+
+knitr::kable(Input_Data_Formatted, caption = "Weights Data, sorted Alphabetically")
+```
+## Weight Table by Queue and Time
+```{r}
+#| echo: false
+#| warning: false
+#| label: Time and Queue Table
+
+Input_Data_Formatted <- Input_Data_Formatted %>% 
+  arrange(`Design Queue`, `Design Time`)
+
+knitr::kable(Input_Data_Formatted, caption = "Weights Data, sorted by Design Queue, then Time")
+```
+<!-- ## Interactive Results Table {#sec-Interactive-Table} -->
+<!-- In this table, you can filter, sort, and search in the results. Because of the number of columns present in the data, you may need to scroll the table left and right to see all columns. To filter/select, use the boxes below the column names - for numeric columns, this will give a slider filter, for text/category columns, this will give selectable filters. To search for a particular school or element, use the search box. To sort by values of a column, click on the arrows/diamond adjacent to the column name. -->
+<!-- ```{r} -->
+<!-- #| echo: false -->
+<!-- #| message: false -->
+<!-- #| label: Dynamic Table -->
+
+<!-- DT::datatable(Input_Data, -->
+<!--           filter = "top", -->
+<!--           rownames = F) %>%  -->
+<!--     DT::formatPercentage(c("Front %", "Left %"),1) %>% -->
+<!--     DT::formatRound("Car Only", digits = 1) %>% -->
+<!--     DT::formatRound("Wheelbase", digits = 1) %>% -->
+<!--     DT::formatRound("Driver Weight", digits = 1) %>% -->
+<!--   DT::formatStyle( -->
+<!--     columns = colnames(.), -->
+<!--     fontSize = '70%' -->
+<!--   ) -->
+<!-- ``` -->
+
+## Methodology
+
+All vehicles were weighed on Intercomp SW650 RFX scales, with the left front scale location used as common datum for all cars. The surface pad was measured within 0.1 deg of level in X, Y, and corner-to-corner, although exact pad locations for the other 3 scales vary with wheelbase and track. At last calibration (2024-04-03), all scales were certified accurate within 0.1% +/- or 1lb +/- (whichever is greater), and a spot check at site setup confirmed all scales consistent at low end (40lb) and high end (275lb) of range used on site.
+
+Cars are weighed twice - once with a driver in the car for balance percentages (teams may select any driver), once with the driver out (for vehicle only weight). If the driver uses a seat spacer/pad, it is removed for the car only measurement (considered driver gear). Cars are presented in "ready to race" configuration, and photographs of the vehicles can be checked at <https://bit.ly/FSAEJ26Scales>
+
+Remaining questions can be directed to the event co-captain, Alton Worthington.
